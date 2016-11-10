@@ -1,0 +1,520 @@
+  1:package AHP;
+  2:
+  3:import java.awt.*;
+  4:import java.awt.event.*;
+  5:import java.lang.*;
+  6:import java.util.*;
+  7:import java.io.*;
+  8:
+  9:class TreePanel extends Panel implements Runnable,MouseListener,MouseMotionListener {
+ 10:    Color selectColor,defaultColor;
+ 11:    Thread linner;
+ 12:    int id = 2;
+ 13:    Node node[] = new Node[50];
+ 14:    Node itsme;
+ 15:    Image offscreen;
+ 16:    Dimension offscreensize;
+ 17:    Graphics offgraphics;
+ 18:    Vector alternative_ids = new Vector();
+ 19:    PairwiseComparisonFrame pcframe;
+ 20:    MatrixFrame mframe;
+ 21:    boolean enabled = true;
+ 22:    boolean show_weights = true;
+ 23:    AHP ahp;
+ 24:
+ 25:    // Constructer
+ 26:    TreePanel(String problem, Vector alternative, AHP theAhp){
+ 27:	ahp = theAhp;	
+ 28:	setSize(400,300);
+ 29:	Dimension d = getSize();
+ 30:	this.selectColor = Color.black;
+ 31:	this.defaultColor = Color.gray;
+ 32:
+ 33:	// Make a Alternaive Nodes (id > 1)
+ 34:	int k = d.width / (alternative.size()+1);
+ 35:	for(int i=0;i<alternative.size();i++){
+ 36:	    Vector alt_child_ids = new Vector(); // size() = 0
+ 37:	    //newNode((String)alternative.elementAt(i),id,1,
+ 38:	    //alt_child_ids,50*i+100,250);
+ 39:	    newNode((String)alternative.elementAt(i),id,1,
+ 40:		    alt_child_ids,k*(i+1),d.height-50);
+ 41:	    // NOTE: ALTERNATIVES DO NOT NEED TO KEEP PARENT IDS.
+ 42:	    //       BUT, HERE, I GIVE 1 ALTERNAIVES' PARENT ID TENTATIVELY.
+ 43:	    alternative_ids.addElement(new Integer(id));
+ 44:	    id++;
+ 45:	}
+ 46:	// Make a Problem Node (id = 1)
+ 47:	newNode(problem,1,0,alternative_ids,d.width/2,20);
+ 48:	node[1].active = true;
+ 49:	itsme = node[1];
+ 50:
+ 51:	initNodeValues();
+ 52:
+ 53:	addMouseListener(this);
+ 54:	addMouseMotionListener(this);	
+ 55:	
+ 56:	start();
+ 57:    }
+ 58:
+ 59:    public Dimension getPreferredSize(){
+ 60:	return new Dimension(400,300);
+ 61:    }
+ 62:
+ 63:    public Dimension getMinimumSize(){
+ 64:	return new Dimension(400,300);
+ 65:    }
+ 66:
+ 67:    void newNode(String name, int n_id, int parent_id, Vector child_ids,
+ 68:                 int x, int y) {
+ 69:    	Node n = new Node();
+ 70:	n.name = name;
+ 71:	n.id = n_id;
+ 72:	n.parent_id = parent_id;
+ 73:	n.child_ids = child_ids;
+ 74:	n.x = x;
+ 75:	n.y = y;
+ 76:	n.active = false;
+ 77:	//System.out.println(n_id);
+ 78:	n.initMatrix();
+ 79:
+ 80:	node[n_id] = n;	
+ 81:    }
+ 82:
+ 83:    public void disabled(){
+ 84:	enabled = false;
+ 85:    }
+ 86:
+ 87:    public void enabled(){
+ 88:	enabled = true;
+ 89:    }
+ 90:    
+ 91:    public void run(){
+ 92:	while(linner != null){
+ 93:	    calculateWeights();
+ 94:	    repaint();
+ 95:	    try{
+ 96:		Thread.sleep(100);
+ 97:	    }catch (InterruptedException e){
+ 98:		break;
+ 99:	    }
+100:	}
+101:    }
+102:    
+103:    public void update(Graphics g){
+104:	paint(g);
+105:	//System.out.println(itsme.name);
+106:    }
+107:
+108:    public void paint(Graphics g){	
+109:	Dimension d = getSize();
+110:        if ((offscreen == null) || (d.width != offscreensize.width)
+111:	    			|| (d.height != offscreensize.height)) {
+112:            offscreen = createImage(d.width, d.height);
+113:            offscreensize = d;
+114:            offgraphics = offscreen.getGraphics();
+115:            offgraphics.setFont(getFont());
+116:        }
+117:	offgraphics.setColor(Color.white);
+118:	offgraphics.fillRect(0,0,d.width,d.height);
+119:
+120:	offgraphics.setFont(new Font("Helvetica",Font.BOLD,18));
+121:	paintLines(offgraphics);
+122:	paintNodes(offgraphics);
+123:
+124:	g.drawImage(offscreen,0,0,null);
+125:    }
+126:
+127:    public void paintNodes(Graphics g){
+128:	for(int i = 1 ; i < id ; i++){
+129:	    if ( node[i] != null && i != itsme.id){
+130:		paintANode(i,g);
+131:	    }
+132:	}
+133:	paintANode(itsme.id,g);
+134:    }
+135:
+136:    public void paintANode(int i,Graphics g){
+137:	FontMetrics fm = g.getFontMetrics();
+138:	int x = node[i].x;
+139:	int y = node[i].y;
+140:	int dw = 0;
+141:	int dh = 5;
+142:	if ( node[i].child_ids.size() == 0 ){
+143:	    dw = (int)(node[i].value * 50);
+144:	    dh = (int)(node[i].value * 50);
+145:	}
+146:	/*
+147:	  int w = fm.stringWidth(node[i].name) + 5;
+148:	  int h = fm.getHeight() + 4;
+149:	  */
+150:	int w = fm.stringWidth(node[i].name) + dw + 5;
+151:	int h = fm.getHeight() + dh - 5;
+152:	
+153:	g.setColor(Color.white);
+154:	g.drawRoundRect(x - w/2, y - h/2, w+1, h+1, 5, 5);
+155:	g.fillRoundRect(x - w/2, y - h/2, w+1, h+1, 5, 5);
+156:	if ( node[i].active == false ){
+157:	    g.setColor(new Color(220,220,220));
+158:	} else if ( node[i].active == true){
+159:	    g.setColor(selectColor);
+160:	    g.drawRoundRect(x - w/2 - 1, y - h/2 - 1, w+3, h+3, 6, 6);
+161:	}
+162:	g.drawRoundRect(x - w/2, y - h/2, w+1, h+1, 5, 5);
+163:	    
+164:	//g.setColor(Color.black);
+165:	if ( node[i].active == false ){
+166:	    //g.setColor(Color.black);
+167:	    g.setColor(defaultColor);
+168:	} else if ( node[i].active == true){
+169:	    g.setColor(selectColor);
+170:	}
+171:	g.drawString(node[i].name,x-(w-10)/2,y-h/4+fm.getAscent());
+172:	
+173:	if(node[i].child_ids.size()==0 && show_weights){
+174:	    Double av = new Double(node[i].value);
+175:	    String av_value = av.toString();
+176:	    if(av_value.length()>6){
+177:		av_value = av_value.substring(0,5);
+178:	    }
+179:	    g.drawString(av_value,x-w/4,y+h);
+180:	}
+181:    }
+182:
+183:    public void paintLines(Graphics g){
+184:	for(int i = 1 ; i < id ; i++){
+185:	    if ( node[i] != null && i != itsme.id){
+186:		paintLinesForANode(node[i],g);
+187:	    }
+188:	}
+189:	paintLinesForANode(itsme,g);
+190:    }
+191:
+192:    public void paintLinesForANode(Node theNode,Graphics g){
+193:	Vector child_ids = theNode.child_ids;
+194:	if(theNode.child_ids.size() != 0){
+195:	    for(int i=0;i<child_ids.size();i++){
+196:		int c_id =
+197:		    Integer.parseInt(child_ids.elementAt(i).toString());
+198:		if ( theNode.active == false ){
+199:		    g.setColor(defaultColor);
+200:		} else if ( theNode.active == true){
+201:		    g.setColor(selectColor);
+202:		}
+203:		g.drawLine(theNode.x,theNode.y,
+204:			   node[c_id].x,node[c_id].y);		
+205:
+206:		if(show_weights){
+207:		    String value = theNode.child_value.get(
+208:			    new Integer(c_id)).toString();
+209:		    if(value.length()>6){
+210:			value = value.substring(0,5);
+211:		    }		    
+212:		    g.drawString(value,
+213:				 (theNode.x + node[c_id].x) / 2,
+214:				 (theNode.y + node[c_id].y) / 2);
+215:		}
+216:	    }
+217:	}
+218:    }
+219:    
+220:    
+221:    public void paintLine(Graphics g,int n_id){
+222:	//g.setColor(Color.black);
+223:	Vector child_ids = node[n_id].child_ids;
+224:	if(node[n_id].child_ids.size() != 0){
+225:	    for(int i=0;i<child_ids.size();i++){
+226:		int c_id =
+227:		    Integer.parseInt(child_ids.elementAt(i).toString());
+228:		if ( node[n_id].active == false ){
+229:		    //g.setColor(Color.black);
+230:		    g.setColor(defaultColor);
+231:		} else if ( node[n_id].active == true){
+232:		    g.setColor(selectColor);
+233:		}
+234:		g.drawLine(node[n_id].x,node[n_id].y,
+235:			   node[c_id].x,node[c_id].y);
+236:		if(show_weights){
+237:		    String value =
+238:			node[n_id].child_value.get(
+239:			    new Integer(c_id)).toString();
+240:		    if(value.length()>6){
+241:			value = value.substring(0,5);
+242:		    }		    
+243:		    g.drawString(value,
+244:				 (node[n_id].x + node[c_id].x) / 2,
+245:				 (node[n_id].y + node[c_id].y) / 2);
+246:		}
+247:		paintLine(g,c_id);
+248:	    }
+249:	}
+250:    }
+251:
+252:    public synchronized void mousePressed(MouseEvent e){
+253:	int x = e.getX();
+254:	int y = e.getY();	
+255:	if(enabled){
+256:	    int best = Integer.MAX_VALUE;
+257:	    for (int i = 1 ; i < id ; i++) {
+258:		if ( node[i] == null ){
+259:		    continue;
+260:		}
+261:		Node n = node[i];
+262:		int dist = (n.x - x) * (n.x - x) + (n.y - y) * (n.y - y);
+263:		if (dist < best) {
+264:		    itsme = n;
+265:		    best = dist;
+266:		}
+267:	    }
+268:	    itsme.x = x;
+269:	    itsme.y = y;
+270:	    for(int i = 1 ; i < id ; i++){
+271:		if ( node[i] == null){
+272:		    continue;
+273:		}
+274:		node[i].active = false;
+275:	    }
+276:	    itsme.active = true;
+277:	    repaint();
+278:	}
+279:    }
+280:
+281:    public synchronized void calculateWeights(){
+282:	// INITIALIZE
+283:	for(int i = 1 ; i < id ; i++){
+284:	    if(node[i] != null){
+285:		if(node[i].child_ids.size() == 0){
+286:		    node[i].value = 0;
+287:		}
+288:	    }
+289:	}
+290:	calcWeights(1,(double)1);
+291:    }
+292:
+293:    public void calcWeights(int n_id,double value){
+294:	Vector child_ids = node[n_id].child_ids;
+295:	if(node[n_id].child_ids.size() == 0){
+296:	    node[n_id].value = value + node[n_id].value;
+297:	} else {
+298:	    for(int i=0;i<child_ids.size();i++){
+299:		int c_id = Integer.parseInt(child_ids.elementAt(i).toString());
+300:		double v = ((Double)node[n_id].child_value.get(new Integer(c_id))).doubleValue();
+301:		v = v * value;
+302:		calcWeights(c_id,v);
+303:	    }
+304:	} 
+305:    }
+306:
+307:    public synchronized void mouseClicked(MouseEvent e){
+308:	if(e.getClickCount() == 2){
+309:	    if(itsme.child_ids.size() > 1){
+310:		pairwisecomparison();
+311:		disabled();		
+312:		ahp.disableAllButton();
+313:	    }	    
+314:	}
+315:    }
+316:    public synchronized void mouseEntered(MouseEvent e){}
+317:    public synchronized void mouseExited(MouseEvent e){}
+318:    public synchronized void mouseMoved(MouseEvent e){}
+319:    public synchronized void mouseDragged(MouseEvent e){	
+320:	if(enabled){
+321:	    itsme.x = e.getX();	    
+322:	    itsme.y = e.getY();	    
+323:	    repaint();
+324:	}
+325:    }
+326:
+327:    public synchronized void mouseReleased(MouseEvent e){	
+328:	if(enabled){
+329:	    itsme.x = e.getX();	    
+330:	    itsme.y = e.getY();	    
+331:	    //itsme = null;
+332:	    
+333:	    repaint();
+334:	}
+335:    }
+336:
+337:    public synchronized void rename(){
+338:	String newtext = new String();
+339:
+340:	InputFrame rename = new InputFrame("RENAME",this);
+341:	rename.show();
+342:    }
+343:
+344:    public void setNewname(String newname){
+345:	itsme.name = newname;
+346:	repaint();
+347:    }
+348:
+349:    public synchronized void pairwisecomparison(){
+350:	pcframe = new PairwiseComparisonFrame(this);
+351:	mframe = new MatrixFrame(this);
+352:	pcframe.show();
+353:	mframe.show();	
+354:    }
+355:
+356:    public boolean equalAlternativeIds(Vector childIds){
+357:	for(int i = 0 ; i < childIds.size() ; i++){
+358:	    int aId = ((Integer)alternative_ids.elementAt(i)).intValue();
+359:	    int cId = ((Integer)childIds.elementAt(i)).intValue();
+360:	    if(aId != cId){
+361:		return false;
+362:	    }
+363:	}
+364:	return true;
+365:    }
+366:
+367:    public synchronized void remove(){
+368:	if( itsme.parent_id != 0 && itsme.child_ids.size() != 0){
+369:	    Node parentNode;
+370:	    parentNode = node[itsme.parent_id];
+371:
+372:	    //System.out.println("Hi");
+373:	    //if( itsme.child_ids == alternative_ids ){
+374:	    if(equalAlternativeIds(itsme.child_ids)){
+375:		if ( parentNode.child_ids.size() > 1){
+376:		    parentNode.child_ids.removeElement(new Integer(itsme.id));
+377:		} else if (parentNode.child_ids.size() == 1){
+378:		    parentNode.child_ids = alternative_ids;
+379:		}	    
+380:	    //} else if ( itsme.child_ids != alternative_ids){
+381:	    } else if (!equalAlternativeIds(itsme.child_ids)){
+382:		for(int j=0; j < itsme.child_ids.size(); j++){
+383:		    parentNode.child_ids.addElement(itsme.child_ids.elementAt(j));
+384:		}
+385:		parentNode.child_ids.removeElement(new Integer(itsme.id));
+386:
+387:		for(int j=0; j < itsme.child_ids.size(); j++){
+388:		    int c_id =
+389:			Integer.parseInt(itsme.child_ids.elementAt(j).toString());
+390:		    node[c_id].parent_id = itsme.parent_id;
+391:		}
+392:	    }
+393:	    node[itsme.parent_id].initChildValue();
+394:	    node[itsme.parent_id].initMatrix();
+395:		
+396:	    node[itsme.id] = null;
+397:	    itsme = node[1];
+398:	    itsme.active = true;
+399:	    repaint();
+400:	}
+401:    }
+402:        
+403:    public synchronized void create(){
+404:	if (itsme.child_ids.size() != 0) { // THEY ARE ALTERNATIVES.
+405:	    Vector childIdsOrg;
+406:	    String name;
+407:	    int x,y;
+408:	    
+409:	    childIdsOrg = itsme.child_ids;
+410:	    x = itsme.x;
+411:	    y = (300 - itsme.y)/2 + itsme.y;
+412:	    name = "unnamed";
+413: 	    //if (itsme.child_ids != alternative_ids){
+414:	    if(!equalAlternativeIds(itsme.child_ids)){
+415: 		itsme.child_ids.addElement(new Integer(id));
+416: 		newNode(name,id,itsme.id,alternative_ids,x,y);
+417:	    } else if (equalAlternativeIds(itsme.child_ids)){
+418:		//} else if (itsme.child_ids == alternative_ids){
+419: 		Vector parent_child_ids = new Vector();
+420: 		parent_child_ids.addElement(new Integer(id));
+421: 		itsme.child_ids = parent_child_ids;
+422: 		newNode(name,id,itsme.id,childIdsOrg,x,y);
+423: 	    }
+424:	    for(int i = 0 ; i < childIdsOrg.size() ; i++){
+425:		int c_id =
+426:		    ((Integer)childIdsOrg.elementAt(i)).intValue();
+427:		node[c_id].parent_id = itsme.id;
+428:	    }
+429:
+430:	    node[id].initChildValue();
+431:	    node[id].initMatrix();
+432:	    node[itsme.id].initChildValue();
+433:	    node[itsme.id].initMatrix();
+434:	    id++;
+435:	    // reinitNodeValues(itsme.id);
+436:	    repaint();
+437:    	}
+438:    }
+439:
+440:    public void initNodeValues(){
+441:	for(int i = 1 ; i < id ; i++){
+442:	    if(node[i] != null){
+443:		node[i].initChildValue();
+444:	    }
+445:	}	    
+446:    }
+447:
+448:    public void reinitNodeValues(int n_id){
+449:	Vector child_ids = node[n_id].child_ids;
+450:	if(node[n_id].child_ids.size() != 0){
+451:	    node[n_id].initChildValue();
+452:	    for(int i=0;i<child_ids.size();i++){
+453:		int c_id = Integer.parseInt(child_ids.elementAt(i).toString());
+454:		reinitNodeValues(c_id);
+455:	    }
+456:	}
+457:    }
+458:
+459:    public void start() {
+460:	linner = new Thread(this);
+461:	linner.start();
+462:    }
+463:    
+464:    public void stop() {
+465:	linner.stop();
+466:    }
+467:
+468:    public void load(){
+469:	Frame fdFrame = new Frame("FD");
+470:	FileDialog fd =
+471:	    new FileDialog(fdFrame,"Load a File",FileDialog.LOAD);
+472:	fd.setDirectory(System.getProperty("user.dir"));
+473:	fd.show();
+474:	String dir = fd.getDirectory();
+475:	String file = fd.getFile();
+476:
+477:	try{
+478:	    File f = new File(dir+file);
+479:	    FileInputStream iStream = new FileInputStream(f);
+480:	    ObjectInputStream dis = new ObjectInputStream(iStream);	
+481:	    node = (Node[])dis.readObject();
+482:	    dis.close();
+483:	    iStream.close();
+484:	} catch(Exception e){
+485:	    System.out.println(e);
+486:	}
+487:
+488:	for(int i = 0 ; i < 50 ; i++){
+489:            if(node[i]!= null){
+490:		if(node[i].active){
+491:		    itsme = node[i];
+492:		}
+493:                id = i + 1;
+494:            }
+495:        }
+496:    }
+497:
+498:    public void save(){
+499:	Frame fdFrame = new Frame("FD");
+500:	FileDialog fd =
+501:	    new FileDialog(fdFrame,"Save a File",FileDialog.SAVE);
+502:	fd.setDirectory(System.getProperty("user.dir"));
+503:	fd.show();
+504:	String dir = fd.getDirectory();
+505:	String file = fd.getFile();
+506:
+507:	try{
+508:	    File f = new File(dir+file);
+509:	    FileOutputStream oStream = new FileOutputStream(f);
+510:	    ObjectOutputStream dos = new ObjectOutputStream(oStream);
+511:	    dos.writeObject(node);
+512:	    dos.close();
+513:	    oStream.close();
+514:	} catch(Exception e){
+515:	    System.out.println(e);
+516:	}
+517:    }
+518:    
+519:
+520:}

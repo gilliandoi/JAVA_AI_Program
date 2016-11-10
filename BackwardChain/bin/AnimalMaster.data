@@ -1,0 +1,24 @@
+rule 	"animalRule1"
+if 	"?x can fly"
+	"?x has wings"
+then	"?x is a bird"
+
+rule 	"animalRule2"
+if 	"?x is a bird"
+	"?x is black"
+then	"?x is a crow"
+
+rule 	"animalRule3"
+if 	"?x is a crow"
+	"?x lives at Road4"
+then	"?x is John"
+
+rule 	"animalRule4"
+if 	"?x like to eat fish"
+	"?x can highly jump"
+then	"?x is a cat"
+
+rule 	"animalRule5"
+if 	"?x like to play with people"
+	"?x can help people to do some jobs"
+then	"?x is a dog"

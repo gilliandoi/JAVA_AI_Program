@@ -1,0 +1,411 @@
+  1:package AHP;
+  2:
+  3:import java.awt.*;
+  4:import java.awt.event.*;
+  5:import java.lang.*;
+  6:import java.util.*;
+  7:
+  8:public class PairwiseComparisonFrame extends Frame implements ActionListener {
+  9:    Panel comparisons = new Panel();
+ 10:    ComparisonPanel cp[];
+ 11:    TreePanel tp;
+ 12:    int now_card;
+ 13:    int pn;
+ 14:    Button ok;
+ 15:    Button cancel;
+ 16:    Button next;
+ 17:    Button previous;    
+ 18:
+ 19:    PairwiseComparisonFrame(TreePanel p){
+ 20:	setTitle("Pairwise Comparison for " + p.itsme.name);
+ 21:	setSize(400,400);
+ 22:	tp = p;
+ 23:
+ 24:	Panel command = new Panel();
+ 25:	command.setLayout(new GridLayout(1,4));
+ 26:	ok     = new Button("OK");
+ 27:	ok.addActionListener(this);	
+ 28:	command.add(ok);
+ 29:	cancel = new Button("CANCEL");
+ 30:	cancel.addActionListener(this);	
+ 31:	command.add(cancel);
+ 32:	next   = new Button("NEXT");
+ 33:	next.addActionListener(this);	
+ 34:	command.add(next);
+ 35:	previous = new Button("PREVIOUS");
+ 36:	previous.addActionListener(this);	
+ 37:	command.add(previous);
+ 38:	
+ 39:	int n = p.itsme.child_ids.size();
+ 40:	comparisons.setLayout(new CardLayout());
+ 41:	
+ 42:	pn = 0;
+ 43:	for(int i = 0 ; i < n ; i++ ){
+ 44:	    for(int j = i + 1 ; j < n ; j++){
+ 45:		pn++;
+ 46:	    }  
+ 47:	}
+ 48:	
+ 49:	///Panel test = new Panel();
+ 50:	///test.setLayout(new GridLayout(1,pn));
+ 51:	
+ 52:	//cp = new ComparisonPanel[100];
+ 53:	cp = new ComparisonPanel[pn];
+ 54:
+ 55:/*
+ 56:	for(int i = 0 ; i < n ; i++){
+ 57:	    for(int j = 0 ; j < i ; j++){
+ 58:		cp[k] = new ComparisonPanel(p,i,j);
+ 59:		comparisons.add(cp[k]);
+ 60:		cp[k++].start();
+ 61:	    }
+ 62:	}
+ 63:*/
+ 64:	int k = 0;
+ 65:	for(int i = 0 ; i < n ; i++){
+ 66:	    for(int j = i+1 ; j < n ; j++){
+ 67:		cp[k] = new ComparisonPanel(p,i,j);
+ 68:		///test.add(cp[k]);
+ 69:		comparisons.add(""+k,cp[k]);
+ 70:		k++;
+ 71:	    }
+ 72:	}
+ 73:	for(int i = 0 ; i < k ; i++){
+ 74:	    cp[i].start();
+ 75:	}
+ 76:	//comparisons.show();
+ 77:	setLayout(new BorderLayout());
+ 78:	///add("Center",test);
+ 79:	add("Center",comparisons);
+ 80:	add("South",command);
+ 81:
+ 82:	// At First, Only thread No. 0 is active.
+ 83:	now_card = 0;
+ 84:	cp[now_card].active = true;
+ 85:    }
+ 86:
+ 87:    public Dimension getPreferredSize(){
+ 88:	return new Dimension(400,400);
+ 89:    }
+ 90:
+ 91:    public Dimension getMinimumSize(){
+ 92:	return new Dimension(400,300);
+ 93:    }
+ 94:
+ 95:    /* Go to the No.(arg) card */
+ 96:    public void gotoCard(String arg){
+ 97:	((CardLayout)comparisons.getLayout()).show(comparisons,arg);
+ 98:	cp[now_card].active = false;
+ 99:	now_card = Integer.parseInt(arg);
+100:	cp[now_card].active = true;
+101:    }
+102:
+103:    public void actionPerformed(ActionEvent event){
+104:	Object source = event.getSource();
+105:	if(source == cancel){
+106:	    tp.mframe.mp.storeMatrix();
+107:	    tp.mframe.setVisible(false);	    
+108:	    tp.mframe.dispose();
+109:	    setVisible(false);	    
+110:	    dispose();
+111:	    tp.enabled();
+112:	    tp.ahp.enableAllButton();
+113:	} else if (source == ok){
+114:	    tp.mframe.mp.storeMatrix();
+115:	    tp.mframe.setVisible(false);	    
+116:	    tp.mframe.dispose();
+117:	    setVisible(false);	    
+118:	    dispose();
+119:	    tp.enabled();
+120:	    tp.ahp.enableAllButton();
+121:	} else if (source == next){
+122:	    ((CardLayout)comparisons.getLayout()).next(comparisons);
+123:	    cp[now_card].active = false;
+124:	    now_card++;
+125:	    if(now_card > pn - 1 ){
+126:		now_card = 0;
+127:	    }
+128:	    cp[now_card].active = true;
+129:	} else if (source == previous){
+130:	    ((CardLayout)comparisons.getLayout()).previous(comparisons);
+131:	    cp[now_card].active = false;
+132:	    now_card--;
+133:	    if(now_card < 0 ){
+134:		now_card = pn - 1;
+135:	    }
+136:	    cp[now_card].active = true;
+137:	}
+138:    }
+139:}
+140:
+141:class ComparisonPanel extends Panel implements Runnable,MouseListener,MouseMotionListener {
+142:    String name1;
+143:    String name2;
+144:    String factor;
+145:    Money money[] = new Money[16];
+146:    Money itsme;
+147:    MediaTracker money_tracker;
+148:    Image offscreen;
+149:    Dimension offscreensize;
+150:    Graphics offgraphics;
+151:    Thread foliage;
+152:    TreePanel tp;
+153:    int x = 0;
+154:    int textwidth = 0;
+155:    Image money_image;
+156:    boolean active = false;
+157:    int mcell_x,mcell_y;
+158:    Dimension d;
+159:
+160:    static String scale[] = {
+161:	"EQUALLY",
+162:	"Intermediate between EQUALLY and SLIGHTLY",
+163:	"SLIGHTLY",
+164:	"Intermediate between SLIGHTLY and STRONGLY", 
+165:	"STRONGLY",
+166:	"Intermediate between STRONGLY and VERY STRONGLY",
+167:	"VERY STRONGLY",
+168:	"Intermediate between VERY STRONGLY and EXTREMELY",
+169:	"EXTREMELY"
+170:    };
+171:
+172:    ComparisonPanel(TreePanel p,int i,int j){
+173:	setSize(400,330);
+174:	d = getSize();
+175:	tp = p;
+176:
+177:	mcell_y = i ;
+178:	mcell_x = j ;
+179:
+180:	initMoneys(i,j);
+181:	/*
+182:	for(int k = 0 ; k < 8 ; k++){
+183:	    money[k] = new Money();
+184:	    money[k].x = d.width / 4 - 30;
+185:	    money[k].y = d.height - 50 - k * 10;
+186:	}
+187:	for(int k = 8 ; k < 16; k++){
+188:	    money[k] = new Money();
+189:	    money[k].x = d.width * 3 / 4 - 30;
+190:	    money[k].y = d.height - 50 - (k-8) * 10;
+191:	}
+192:	*/
+193:	//setLayout(new BorderLayout());
+194:	int c_id1=Integer.parseInt(p.itsme.child_ids.elementAt(j).toString());
+195:	int c_id2=Integer.parseInt(p.itsme.child_ids.elementAt(i).toString());
+196:	name1 = p.node[c_id1].name;
+197:	name2 = p.node[c_id2].name;
+198:	factor = p.itsme.name;
+199:	//add("North",new Label("Comparison:" + name1 + "<->" + name2));
+200:	//System.out.println("Comparison:" + name1 + "<->" + name2);
+201:	money_image = tp.ahp.money_image;
+202:	money_tracker = tp.ahp.money_tracker;
+203:
+204:	addMouseListener(this);
+205:	addMouseMotionListener(this);	
+206:    }
+207:
+208:    public void initMoneys(int x, int y){
+209:	d = getSize();
+210:	double n1 = tp.itsme.matrix[y][x];
+211:	double n2 = tp.itsme.matrix[x][y];
+212:	if( n1 < 1 ){
+213:	    n1 = 16 - (n2+7);
+214:	} else {
+215:	    n1 = n1 + 7;
+216:	}
+217:	
+218:	for(int k = 0 ; k < (int)n1 ; k++){
+219:	    money[k] = new Money();
+220:	    money[k].x = d.width / 4 - 30;
+221:	    money[k].y = d.height - 50 - k * 10;
+222:	}
+223:	for(int k = (int)n1 ; k < 16; k++){
+224:	    money[k] = new Money();
+225:	    money[k].x = d.width * 3 / 4 - 30;
+226:	    money[k].y = d.height - 50 - (k-8) * 10;
+227:	}
+228:    }
+229:    
+230:
+231:    public Dimension getPreferredSize(){
+232:	return new Dimension(400,330);
+233:    }
+234:
+235:    public Dimension getMinimumSize(){
+236:	return new Dimension(400,330);
+237:    }
+238:
+239:    public synchronized void mousePressed(MouseEvent e){
+240:	int x = e.getX();
+241:	int y = e.getY();	
+242:        int best = Integer.MAX_VALUE;
+243:        for (int i = 0 ; i < 16 ; i++) {
+244:	    if ( money[i] == null ){
+245:		continue;
+246:	    }
+247:            Money n = money[i];
+248:            int dist = (n.x - x) * (n.x - x) + (n.y - y) * (n.y - y);
+249:            if (dist < best) {
+250:                itsme = n;
+251:                best = dist;
+252:            }
+253:        }
+254:        itsme.x = x;
+255:        itsme.y = y;
+256:        repaint();
+257:    }
+258:    public synchronized void mouseClicked(MouseEvent e){}
+259:    public synchronized void mouseEntered(MouseEvent e){}
+260:    public synchronized void mouseExited(MouseEvent e){}
+261:    public synchronized void mouseReleased(MouseEvent e){	
+262:        itsme.x = e.getX();	
+263:        itsme.y = e.getY();	
+264:        itsme = null;
+265:        repaint();
+266:    }
+267:    
+268:    
+269:    public synchronized void mouseDragged(MouseEvent e){	
+270:        itsme.x = e.getX();	
+271:        itsme.y = e.getY();	
+272:        repaint();
+273:    }
+274:    public synchronized void mouseMoved(MouseEvent e){
+275:    }
+276:
+277:    public synchronized void update(Graphics g){
+278:	paint(g);
+279:    }
+280:
+281:    public synchronized void paint(Graphics g){
+282:        if ((offscreen == null) || (d.width != offscreensize.width)
+283:	    			|| (d.height != offscreensize.height)) {
+284:            offscreen = createImage(d.width, d.height);
+285:            offscreensize = d;
+286:            offgraphics = offscreen.getGraphics();
+287:            offgraphics.setFont(getFont());
+288:        }
+289:	offgraphics.setColor(getBackground());
+290:	offgraphics.fillRect(0,0,d.width,d.height);
+291:
+292:	tp.mframe.mp.setcurrent(mcell_y,mcell_x);
+293:	
+294:	paintAlternatives(offgraphics);
+295:	paintMoney(offgraphics);
+296:	paintMessage(offgraphics);
+297:	paintFactor(offgraphics);
+298:	setx();	
+299:	g.drawImage(offscreen,0,0,this);
+300:    }
+301:
+302:    public synchronized void paintFactor(Graphics g){
+303:	//Dimension d = size();
+304:
+305:	FontMetrics fm = g.getFontMetrics();
+306:
+307:	int textwidth = fm.stringWidth("Comparison with respect to");
+308:	g.setColor(Color.black);
+309:	g.drawString("Comparison with respect to",d.width/2-textwidth/2,80);
+310:	
+311:	textwidth = fm.stringWidth(factor);
+312:	g.setColor(Color.red);
+313:	g.drawString(factor,d.width/2-textwidth/2,100);
+314:    }
+315:    
+316:    public synchronized void paintMessage(Graphics g){
+317:	String message = new String();
+318:	int left = 0;
+319:	for(int i = 0 ; i < 16 ; i++){
+320:	    if ( money[i].x < getSize().width/2 ){
+321:		left++;
+322:	    }
+323:	}
+324:
+325:	if ( left == 8 ){
+326:	    message = name1 + " and " + name2 + " are " + scale[0]
+327:		 + " important or prefered ";
+328:	    tp.mframe.mp.current.value = 1;
+329:	    tp.mframe.mp.cocurrent.value = 1;
+330:	} else if ( left > 8 ) {
+331:	    message = name1 + " is " + scale[left-8] +
+332:		" more important or prefered than " + name2;
+333:	    tp.mframe.mp.current.value = (double)left -8 +1;
+334:	    tp.mframe.mp.cocurrent.value = 1/((double)left -8 +1);
+335:	} else if ( left < 8 ) {
+336:	    message = name2 + " is " + scale[8-left] +
+337:		" more important or prefered than " + name1;
+338:	    tp.mframe.mp.current.value = 1/(8 -(double)left  +1);
+339:	    tp.mframe.mp.cocurrent.value = 8 -(double)left +1;
+340:	}
+341:	g.setColor(Color.black);
+342:	g.drawString(message,x,30);
+343:	FontMetrics fm = g.getFontMetrics();
+344:	textwidth = fm.stringWidth(message + "");
+345:    }
+346:    
+347:    public synchronized void setx(){
+348:	x = x - 10;
+349:	if ( x < -(textwidth)){
+350:	    x = getSize().width;
+351:	}
+352:    }    
+353:
+354:    public synchronized void paintAlternatives(Graphics g){
+355:        g.setColor(Color.white);
+356:        g.fillOval(0            ,d.height-50-d.height/10,
+357:                   d.width/2,d.height/5);
+358:        g.fillOval(d.width/2    ,d.height-50-d.height/10,
+359:                   d.width/2,d.height/5);
+360:	g.setColor(Color.black);
+361:	g.drawOval(0            ,d.height-50-d.height/10,
+362:                   d.width/2,d.height/5);
+363:        g.drawOval(d.width/2    ,d.height-50-d.height/10,
+364:                   d.width/2,d.height/5);
+365:        g.setColor(Color.red);
+366:        g.setFont(new Font("TimesRoman",Font.BOLD,18));
+367:	g.drawString(name1,30           ,d.height-50);
+368:	g.drawString(name2,d.width/2+30 ,d.height-50);
+369:    }
+370:
+371:    public synchronized void paintMoney(Graphics g){
+372:	for(int i = 0 ; i < 16; i++){
+373:	    int x = money[i].x;
+374:	    int y = money[i].y;
+375:	    g.drawImage(money_image,x,y,this);
+376:	}
+377:    }
+378:
+379:    public void start() {
+380:	foliage = new Thread(this);
+381:	foliage.start();
+382:    }
+383:    
+384:    public void stop() {
+385:	foliage.stop();
+386:	foliage = null;
+387:    }
+388:
+389:    public void run(){
+390:	Random rand = new Random();
+391:	try {money_tracker.waitForID(1);} catch (InterruptedException e){};
+392:	while(foliage != null){
+393:	    //System.out.println("Hello");
+394:	    for(int i = 0; i < 16 ;i++){
+395:		if(money[i].y < d.height-50-d.height/10){
+396:		    int xx = rand.nextInt()/1000000000;
+397:		    money[i].y = money[i].y + 3 + xx;
+398:		    money[i].x = money[i].x + xx;
+399:		}	    
+400:	    }
+401:	    try{
+402:		Thread.sleep(100);
+403:	    }catch (InterruptedException e){
+404:		break;
+405:	    }
+406:	    if(active == true){
+407:		repaint();
+408:	    }
+409:	}	
+410:    }    
+411:}

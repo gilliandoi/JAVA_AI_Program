@@ -1,0 +1,78 @@
+ 1:package AHP;
+ 2:import java.lang.*;
+ 3:
+ 4:class PowerMethod {
+ 5: public static double[] power(double[][] matrix){
+ 6:  int n = matrix.length;
+ 7:  double result[] = new double[n+1];
+ 8:
+ 9:  // INITIAL VALUE
+10:  double s;
+11:  for(int i = 0; i < n ; i++){
+12:   s = 1;
+13:   for(int j = 0; j < n; j++){
+14:    s = s * matrix[i][j];
+15:   }
+16:   result[i] = Math.pow(s,(double)1/n);
+17:  }
+18:  s = 0;
+19:  for(int i = 0; i < n ; i++){
+20:   s = s + result[i];
+21:  }
+22:  for(int i = 0; i < n ; i++){
+23:   result[i] = result[i] / s;
+24:  }
+25:
+26:  // POWER METHOD
+27:  int iter = 0;
+28:  int flag = 0;
+29:  double w;
+30:  double rmax1=0;
+31:  double rmax2=0;
+32:  double ww[] = new double[n];
+33:  while(flag == 0){
+34:   iter = iter + 1;
+35:   for(int i = 0 ; i < n ; i++){
+36:    w = 0;
+37:    for(int j = 0 ; j < n ; j++){
+38:     w = w + matrix[i][j]*result[j];
+39:    }
+40:    ww[i] = w;
+41:   }
+42:   s = 0;
+43:   for(int i = 0; i < n ; i++){
+44:    s = s + ww[i];
+45:   }
+46:   rmax2 = s;
+47:   for(int i = 0; i < n ; i++){
+48:    ww[i] = ww[i] / s;
+49:   }
+50:   flag = 1;
+51:   if (iter != 1){
+52:    if(Math.abs(rmax2 - rmax1) > rmax1/1000) {
+53:     rmax1 = rmax2;
+54:     for(int k =0; k < n ; k++){
+55:      result[k] = ww[k];
+56:     }
+57:     flag = 0;
+58:    }
+59:    for(int i = 0; i < n ; i++){
+60:     if(Math.abs(result[i]-ww[i])> result[i]/1000) {
+61:      rmax1 = rmax2;
+62:      for(int k =0; k < n ; k++){
+63:       result[k] = ww[k];
+64:      }
+65:      flag = 0;
+66:     }
+67:    }
+68:   } else {
+69:    rmax1 = rmax2;
+70:    for(int k =0; k < n ; k++){
+71:     result[k] = ww[k];
+72:    }
+73:   }
+74:  }
+75:  result[n] = rmax2;
+76:  return result;
+77: }    
+78:}
