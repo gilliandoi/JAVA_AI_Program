@@ -1,1 +1,2 @@
-# JAVA_AI_Program
+# JAVA_AI_Program  
+JAVAによって人工知能
